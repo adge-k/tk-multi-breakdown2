@@ -8,10 +8,14 @@
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights
 # not expressly granted therein are reserved by Autodesk, Inc.
 
+# NOTE: Most of this is a Claude Code generated example.  Do not rely on, as
+# it is intended to give an idea for my own development.
+
 import os
 import sgtk
 from sgtk import TankError
 from typing import Any, Generator
+from pathlib import Path
 
 try:
     import pymxs
@@ -77,9 +81,19 @@ class BreakdownSceneOperations(HookBaseClass):
         return refs
 
     def _get_xref_objects(self):
-
+        # TODO(adge-k): This is intended to replace the functionality of the "_scan_xref_objects" function Claude generated.
+        # TODO(adge-k): Refactor to allow for empty arrays etc. to prevent errors.
+        # TODO(adge-k): Not sure why it would have gone for names first.  Just loop through found objects.
         for object_name in self._rt.getMAXFileObjectNames(self._rt.Name("XRefObjects")):
-            obj = self._rt.getMAXFileObject(self._rt.Name("XRefObjects"), xref_name)
+            obj = self._rt.getMAXFileObject(self._rt.Name("XRefObjects"), object_name)
+            if obj and hasattr(obj, "filename"):
+                fpath = Path(getattr(obj, "filename", Path()))
+                if fpath.is_file():
+                    yield {
+                        "node_name": object_name,
+                        "node_type": "xref_object",
+                        "path": str(fpath)
+                    }
 
     def _scan_xref_objects(self):
         """
@@ -398,4 +412,4 @@ class BreakdownSceneOperations(HookBaseClass):
             self.logger.debug("Scene change callback unregistered")
 
         except Exception as e:
-            self.logger.error("Error unregistering scene change callback: %s" % str(e))
+            self.logger.error("Error unregistering scene change callback: %s" % str(e)) 
