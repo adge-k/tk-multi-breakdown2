@@ -1,0 +1,23 @@
+version = 1
+revision = 2
+requires-python = ">=3.12"
+
+[[package]]
+name = "sgtk"
+version = "0.21.7"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/2a/e5/7451bbd0d5d8ac8ae9cd8a1353eeadf0a120e8a6d7c57dc2ae0a0e0a2b3a/sgtk-0.21.7.tar.gz", hash = "sha256:29fbe8057fb50d326cde611aac994b16c792cbc0771ce0b3f1c515a24579aa58", size = 1707394, upload-time = "2024-10-30T08:27:26.426Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bd/68/e3d77050daa3f18c42dad3fbe2c9f95fed26843bd3107d05de22c8740fa7/sgtk-0.21.7-py3-none-any.whl", hash = "sha256:d6ff361294545ae48c17117999f48cb9136e81c060b558b248a73e728b6fabb0", size = 1902493, upload-time = "2024-10-30T08:27:23.373Z" },
+]
+
+[[package]]
+name = "tk-multi-breakdown2"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "sgtk" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "sgtk", specifier = ">=0.21.7" }]
