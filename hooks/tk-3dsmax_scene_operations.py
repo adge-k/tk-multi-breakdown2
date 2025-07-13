@@ -8,22 +8,18 @@
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights
 # not expressly granted therein are reserved by Autodesk, Inc.
 
+# TODO(adge-k): Add: simulation caches etc.
+
 # NOTE: Most of this is a Claude Code generated example.  Do not rely on, as
 # it is intended to give an idea for my own development.
 
 import os
 import sgtk
 from sgtk import TankError
-from typing import Any, Generator
 from pathlib import Path
-
-try:
-    import pymxs
-except ImportError:
-    pymxs = None
+import pymxs
 
 HookBaseClass = sgtk.get_hook_baseclass()
-
 
 
 class BreakdownSceneOperations(HookBaseClass):
@@ -67,193 +63,71 @@ class BreakdownSceneOperations(HookBaseClass):
         available. Any such versions are then displayed in the UI as out of date.
         """
 
+        _targets = [
+            _get_xref_objects,
+            _get_xref_scenes,
+            _get_bitmaps,
+        ]
+
         refs = []
 
-        # Scan XRef Objects
-        refs.extend(self._scan_xref_objects())
+        # Build refs array from targets
+        for t in _targets:
+            for r in t():
+                refs.append(r)
 
-        # Scan XRef Scenes
-        refs.extend(self._scan_xref_scenes())
+        # # Scan XRef Objects
+        # refs.extend(self._scan_xref_objects())
 
-        # Scan Material Bitmap Textures
-        refs.extend(self._scan_material_bitmaps())
+        # # Scan XRef Scenes
+        # refs.extend(self._scan_xref_scenes())
+
+        # # Scan Material Bitmap Textures
+        # refs.extend(self._scan_material_bitmaps())
 
         return refs
 
     def _get_xref_objects(self):
-        # TODO(adge-k): This is intended to replace the functionality of the "_scan_xref_objects" function Claude generated.
-        # TODO(adge-k): Refactor to allow for empty arrays etc. to prevent errors.
-        # TODO(adge-k): Not sure why it would have gone for names first.  Just loop through found objects.
-        for object_name in self._rt.getMAXFileObjectNames(self._rt.Name("XRefObjects")):
-            obj = self._rt.getMAXFileObject(self._rt.Name("XRefObjects"), object_name)
-            if obj and hasattr(obj, "filename"):
-                fpath = Path(getattr(obj, "filename", Path()))
-                if fpath.is_file():
+        # ObjXRefMgr.recordCount is 1-indexed like a lot of other maxscript
+        for i in range(1, self._rt.ObjXRefMgr.recordCount + 1):
+            current_object = self._rt.ObjXRefMgr.GetRecord(i)
+            if current_object:
+                path = Path(getattr(current_object, "srcFileName", ""))
+                if path.is_file():
                     yield {
-                        "node_name": object_name,
-                        "node_type": "xref_object",
-                        "path": str(fpath)
+                        "node_name": getattr(current_object, "name", "Unknown Object"),
+                        "node_type": "reference",
+                        "path": str(path)
                     }
 
-    def _scan_xref_objects(self):
-        """
-        Scan for XRef objects in the scene.
-        
-        :return: List of XRef object references
-        :rtype: list
-        """
-        refs = []
+    def _get_xref_scenes(self):
+        """Get all XREF Scene links in the current file."""
+        # NOTE: XREFScene count is 1-indexed.
+        for i in range(1, self._rt.xrefs.getXRefFileCount() + 1):
+            xref = self._rt.xrefs.getXRefFile(i)
 
-        try:
-            # Get all XRef objects in the scene
-            xref_objects = self._rt.getMAXFileObjectNames(self._rt.Name("XRefObjects"))
-            
-            if xref_objects:
-                for i in range(xref_objects.count):
-                    xref_name = str(xref_objects[i])
-                    
-                    # Get the XRef object
-                    xref_obj = self._rt.getMAXFileObject(self._rt.Name("XRefObjects"), xref_name)
-                    
-                    if xref_obj and hasattr(xref_obj, 'filename'):
-                        file_path = str(xref_obj.filename)
-                        if file_path and os.path.exists(file_path):
-                            refs.append({
-                                "node_name": xref_name,
-                                "node_type": "xref_object",
-                                "path": os.path.normpath(file_path),
-                                "extra_data": {
-                                    "xref_index": i
-                                }
-                            })
-        except Exception as e:
-            self.logger.warning("Error scanning XRef objects: %s" % str(e))
-            
-        return refs
+            yield {
+                "node_name": getattr(xref, "name", "Unknown XREF Scene"),
+                "node_type": "reference",
+                "path": getattr(xref, "fileName", "")
+            }
 
-    def _scan_xref_scenes(self):
-        """
-        Scan for XRef scenes in the scene.
-        
-        :return: List of XRef scene references
-        :rtype: list
-        """
-        refs = []
-        
-        try:
-            # Get all XRef scenes
-            xref_scenes = self._rt.getMAXFileObjectNames(self._rt.Name("XRefScenes"))
-            
-            if xref_scenes:
-                for i in range(xref_scenes.count):
-                    xref_name = str(xref_scenes[i])
-                    
-                    # Get the XRef scene
-                    xref_scene = self._rt.getMAXFileObject(self._rt.Name("XRefScenes"), xref_name)
-                    
-                    if xref_scene and hasattr(xref_scene, 'filename'):
-                        file_path = str(xref_scene.filename)
-                        if file_path and os.path.exists(file_path):
-                            refs.append({
-                                "node_name": xref_name,
-                                "node_type": "xref_scene",
-                                "path": os.path.normpath(file_path),
-                                "extra_data": {
-                                    "xref_index": i
-                                }
-                            })
-        except Exception as e:
-            self.logger.warning("Error scanning XRef scenes: %s" % str(e))
-            
-        return refs
+            # TODO(adge-k): Confirm that you want to double-check if the
+            # file exists, as the scanner may not have access causing
+            # false negatives.
 
-    def _scan_material_bitmaps(self):
-        """
-        Scan for bitmap textures in materials.
-        
-        :return: List of bitmap texture references
-        :rtype: list
-        """
-        refs = []
-        
-        try:
-            # Get all bitmap textures in the scene
-            bitmap_textures = self._rt.getClassInstances(self._rt.BitmapTexture)
-            
-            for bitmap in bitmap_textures:
-                if hasattr(bitmap, 'filename') and bitmap.filename:
-                    file_path = str(bitmap.filename)
-                    if file_path and os.path.exists(file_path):
-                        # Get the material name that contains this bitmap
-                        material_name = self._get_material_name_for_bitmap(bitmap)
-                        node_name = "%s_bitmap_%s" % (material_name or "unknown", bitmap.name or "unnamed")
-                        
-                        refs.append({
-                            "node_name": node_name,
-                            "node_type": "bitmap_texture",
-                            "path": os.path.normpath(file_path),
-                            "extra_data": {
-                                "bitmap_handle": bitmap.handle,
-                                "material_name": material_name
-                            }
-                        })
-        except Exception as e:
-            self.logger.warning("Error scanning bitmap textures: %s" % str(e))
-            
-        return refs
+    def _get_bitmaps(self):
+        bitmap_node_classes = [
+            self._rt.BitmapTex,
+        ]
 
-    def _get_material_name_for_bitmap(self, bitmap):
-        """
-        Get the material name that contains the given bitmap texture.
-        
-        :param bitmap: The bitmap texture object
-        :return: Material name or None if not found
-        :rtype: str or None
-        """
-        try:
-            # Get all materials in the scene
-            materials = self._rt.sceneMaterials
-            
-            for material in materials:
-                if self._bitmap_in_material(bitmap, material):
-                    return str(material.name) if hasattr(material, 'name') else None
-        except Exception as e:
-            self.logger.debug("Error finding material for bitmap: %s" % str(e))
-            
-        return None
-
-    def _bitmap_in_material(self, bitmap, material):
-        """
-        Check if a bitmap is used in a material (recursive check for sub-materials).
-        
-        :param bitmap: The bitmap texture to search for
-        :param material: The material to search in
-        :return: True if bitmap is found in material
-        :rtype: bool
-        """
-        try:
-            # Check if this material directly uses the bitmap
-            if hasattr(material, 'diffuseMap') and material.diffuseMap == bitmap:
-                return True
-            if hasattr(material, 'bumpMap') and material.bumpMap == bitmap:
-                return True
-            if hasattr(material, 'specularMap') and material.specularMap == bitmap:
-                return True
-            if hasattr(material, 'opacityMap') and material.opacityMap == bitmap:
-                return True
-            if hasattr(material, 'reflectionMap') and material.reflectionMap == bitmap:
-                return True
-            
-            # Check sub-materials for multi-materials
-            if hasattr(material, 'materialList'):
-                for sub_material in material.materialList:
-                    if sub_material and self._bitmap_in_material(bitmap, sub_material):
-                        return True
-                        
-        except Exception as e:
-            self.logger.debug("Error checking bitmap in material: %s" % str(e))
-            
-        return False
+        for c in bitmap_node_classes:
+            for bitmap in self._rt.GetClassInstances(c):
+                yield {
+                    "node_name": getattr(bitmap, "name", "Unknown Bitmap Name"),
+                    "node_type": "file",
+                    "path": getattr(bitmap, "fileName", ""),
+                }
 
     def update(self, item):
         """
@@ -266,22 +140,24 @@ class BreakdownSceneOperations(HookBaseClass):
                      The path key now holds the path that the node should be updated *to* rather than the current path.
         """
 
-        node_name = item["node_name"]
-        node_type = item["node_type"]
-        path = item["path"]
-        extra_data = item.get("extra_data", {})
+        self.logger.info("Skipping node updates for initial testing...")
 
-        # Normalize path for 3ds Max (use forward slashes)
-        path = path.replace("\\", "/")
+        # node_name = item["node_name"]
+        # node_type = item["node_type"]
+        # path = item["path"]
+        # extra_data = item.get("extra_data", {})
 
-        if node_type == "xref_object":
-            self._update_xref_object(node_name, path, extra_data)
-        elif node_type == "xref_scene":
-            self._update_xref_scene(node_name, path, extra_data)
-        elif node_type == "bitmap_texture":
-            self._update_bitmap_texture(node_name, path, extra_data)
-        else:
-            self.logger.warning("Unknown node type: %s" % node_type)
+        # # Normalize path for 3ds Max (use forward slashes)
+        # path = path.replace("\\", "/")
+
+        # if node_type == "xref_object":
+        #     self._update_xref_object(node_name, path, extra_data)
+        # elif node_type == "xref_scene":
+        #     self._update_xref_scene(node_name, path, extra_data)
+        # elif node_type == "bitmap_texture":
+        #     self._update_bitmap_texture(node_name, path, extra_data)
+        # else:
+        #     self.logger.warning("Unknown node type: %s" % node_type)
 
     def _update_xref_object(self, node_name, path, extra_data):
         """
@@ -291,27 +167,29 @@ class BreakdownSceneOperations(HookBaseClass):
         :param path: New file path
         :param extra_data: Extra data containing xref_index
         """
-        try:
-            self.logger.debug("Updating XRef object '%s' to: %s" % (node_name, path))
+
+        self.logger.info("Skipping any XREF Object update for now...")
+        # try:
+        #     self.logger.debug("Updating XRef object '%s' to: %s" % (node_name, path))
             
-            xref_index = extra_data.get("xref_index", 0)
+        #     xref_index = extra_data.get("xref_index", 0)
             
-            # Get the XRef object
-            xref_obj = self._rt.getMAXFileObject(self._rt.Name("XRefObjects"), node_name)
+        #     # Get the XRef object
+        #     xref_obj = self._rt.getMAXFileObject(self._rt.Name("XRefObjects"), node_name)
             
-            if xref_obj:
-                # Update the filename
-                xref_obj.filename = path
+        #     if xref_obj:
+        #         # Update the filename
+        #         xref_obj.filename = path
                 
-                # Reload the XRef
-                self._rt.reloadMAXFile(self._rt.Name("XRefObjects"), node_name)
+        #         # Reload the XRef
+        #         self._rt.reloadMAXFile(self._rt.Name("XRefObjects"), node_name)
                 
-                self.logger.debug("Successfully updated XRef object '%s'" % node_name)
-            else:
-                self.logger.error("Could not find XRef object '%s'" % node_name)
+        #         self.logger.debug("Successfully updated XRef object '%s'" % node_name)
+        #     else:
+        #         self.logger.error("Could not find XRef object '%s'" % node_name)
                 
-        except Exception as e:
-            self.logger.error("Error updating XRef object '%s': %s" % (node_name, str(e)))
+        # except Exception as e:
+        #     self.logger.error("Error updating XRef object '%s': %s" % (node_name, str(e)))
 
     def _update_xref_scene(self, node_name, path, extra_data):
         """
@@ -321,27 +199,29 @@ class BreakdownSceneOperations(HookBaseClass):
         :param path: New file path
         :param extra_data: Extra data containing xref_index
         """
-        try:
-            self.logger.debug("Updating XRef scene '%s' to: %s" % (node_name, path))
+
+        self.logger.info("Skipping any XREF Scene update for now...")
+        # try:
+        #     self.logger.debug("Updating XRef scene '%s' to: %s" % (node_name, path))
             
-            xref_index = extra_data.get("xref_index", 0)
+        #     xref_index = extra_data.get("xref_index", 0)
             
-            # Get the XRef scene
-            xref_scene = self._rt.getMAXFileObject(self._rt.Name("XRefScenes"), node_name)
+        #     # Get the XRef scene
+        #     xref_scene = self._rt.getMAXFileObject(self._rt.Name("XRefScenes"), node_name)
             
-            if xref_scene:
-                # Update the filename
-                xref_scene.filename = path
+        #     if xref_scene:
+        #         # Update the filename
+        #         xref_scene.filename = path
                 
-                # Reload the XRef
-                self._rt.reloadMAXFile(self._rt.Name("XRefScenes"), node_name)
+        #         # Reload the XRef
+        #         self._rt.reloadMAXFile(self._rt.Name("XRefScenes"), node_name)
                 
-                self.logger.debug("Successfully updated XRef scene '%s'" % node_name)
-            else:
-                self.logger.error("Could not find XRef scene '%s'" % node_name)
+        #         self.logger.debug("Successfully updated XRef scene '%s'" % node_name)
+        #     else:
+        #         self.logger.error("Could not find XRef scene '%s'" % node_name)
                 
-        except Exception as e:
-            self.logger.error("Error updating XRef scene '%s': %s" % (node_name, str(e)))
+        # except Exception as e:
+        #     self.logger.error("Error updating XRef scene '%s': %s" % (node_name, str(e)))
 
     def _update_bitmap_texture(self, node_name, path, extra_data):
         """
@@ -351,27 +231,28 @@ class BreakdownSceneOperations(HookBaseClass):
         :param path: New file path
         :param extra_data: Extra data containing bitmap_handle
         """
-        try:
-            self.logger.debug("Updating bitmap texture '%s' to: %s" % (node_name, path))
+        self.logger.info("Skipping any bitmap update for now...")
+        # try:
+        #     self.logger.debug("Updating bitmap texture '%s' to: %s" % (node_name, path))
             
-            bitmap_handle = extra_data.get("bitmap_handle")
+        #     bitmap_handle = extra_data.get("bitmap_handle")
             
-            if bitmap_handle:
-                # Get the bitmap by handle
-                bitmap = self._rt.maxOps.getNodeByHandle(bitmap_handle)
+        #     if bitmap_handle:
+        #         # Get the bitmap by handle
+        #         bitmap = self._rt.maxOps.getNodeByHandle(bitmap_handle)
                 
-                if bitmap:
-                    # Update the filename
-                    bitmap.filename = path
+        #         if bitmap:
+        #             # Update the filename
+        #             bitmap.filename = path
                     
-                    # Reload the bitmap
-                    bitmap.reload()
+        #             # Reload the bitmap
+        #             bitmap.reload()
                     
-                    self.logger.debug("Successfully updated bitmap texture '%s'" % node_name)
-                else:
-                    self.logger.error("Could not find bitmap texture with handle '%s'" % bitmap_handle)
-            else:
-                self.logger.error("No bitmap handle provided for '%s'" % node_name)
+        #             self.logger.debug("Successfully updated bitmap texture '%s'" % node_name)
+        #         else:
+        #             self.logger.error("Could not find bitmap texture with handle '%s'" % bitmap_handle)
+        #     else:
+        #         self.logger.error("No bitmap handle provided for '%s'" % node_name)
                 
         except Exception as e:
             self.logger.error("Error updating bitmap texture '%s': %s" % (node_name, str(e)))
@@ -386,30 +267,34 @@ class BreakdownSceneOperations(HookBaseClass):
         :param scene_change_callback: The callback to register and execute on scene changes.
         :type scene_change_callback: function
         """
-        
-        try:
-            # 3ds Max doesn't have a direct equivalent to Maya's scene callbacks
-            # We'll use a simpler approach with file change notifications
-            # This is a placeholder implementation - in a real scenario, you might
-            # want to use 3ds Max's notification system or polling
+
+        self.logger.info("Not registering any Max scene callbacks at this time")
+
+        # try:
+        #     # 3ds Max doesn't have a direct equivalent to Maya's scene callbacks
+        #     # We'll use a simpler approach with file change notifications
+        #     # This is a placeholder implementation - in a real scenario, you might
+        #     # want to use 3ds Max's notification system or polling
             
-            self.logger.debug("Scene change callback registration not fully implemented for 3ds Max")
+        #     self.logger.debug("Scene change callback registration not fully implemented for 3ds Max")
             
-            # Store the callback for potential future use
-            self._scene_change_callback = scene_change_callback
+        #     # Store the callback for potential future use
+        #     self._scene_change_callback = scene_change_callback
             
-        except Exception as e:
-            self.logger.error("Error registering scene change callback: %s" % str(e))
+        # except Exception as e:
+        #     self.logger.error("Error registering scene change callback: %s" % str(e))
 
     def unregister_scene_change_callback(self):
         """Unregister the scene change callbacks."""
-        
-        try:
-            # Clear the stored callback
-            if hasattr(self, '_scene_change_callback'):
-                self._scene_change_callback = None
-                
-            self.logger.debug("Scene change callback unregistered")
 
-        except Exception as e:
-            self.logger.error("Error unregistering scene change callback: %s" % str(e)) 
+        self.logger.info("Not unregistering any Max scene callbacks at this time")
+
+        # try:
+        #     # Clear the stored callback
+        #     if hasattr(self, '_scene_change_callback'):
+        #         self._scene_change_callback = None
+                
+        #     self.logger.debug("Scene change callback unregistered")
+
+        # except Exception as e:
+        #     self.logger.error("Error unregistering scene change callback: %s" % str(e)) 
