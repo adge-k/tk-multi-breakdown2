@@ -40,58 +40,6 @@ class BreakdownSceneOperations(HookBaseClass):
         # Store reference to pymxs runtime for convenience
         self._rt = pymxs.runtime
 
-    def scan_scene(self):
-        """
-        The scan scene method is executed once at startup and its purpose is
-        to analyze the current scene and return a list of references that are
-        to be potentially operated on.
-
-        The return data structure is a list of dictionaries. Each scene reference
-        that is returned should be represented by a dictionary with three keys:
-
-        - "node_name": The name of the 'node' that is to be operated on. Most DCCs have
-          a concept of a node, path or some other way to address a particular
-          object in the scene.
-        - "node_type": The object type that this is. This is later passed to the
-          update method so that it knows how to handle the object.
-        - "path": Path on disk to the referenced object.
-        - "extra_data": Optional key to pass some extra data to the update method
-          in case we'd like to access them when updating the nodes.
-
-        Toolkit will scan the list of items, see if any of the objects matches
-        a published file and try to determine if there is a more recent version
-        available. Any such versions are then displayed in the UI as out of date.
-        """
-
-        _targets = [
-            _get_xref_objects,
-            _get_xref_scenes,
-            _get_bitmaps,
-        ]
-
-        self.logger.info(f"Running on {len(_targets)} targets: {_targets}")
-
-        refs = []
-
-        # Build refs array from targets
-        for t in _targets:
-            self.logger.info(f"Searching in target: {t}")
-            for r in t():
-                self.logger.info(f"Found object: {r}")
-                refs.append(r)
-
-        # # Scan XRef Objects
-        # refs.extend(self._scan_xref_objects())
-
-        # # Scan XRef Scenes
-        # refs.extend(self._scan_xref_scenes())
-
-        # # Scan Material Bitmap Textures
-        # refs.extend(self._scan_material_bitmaps())
-
-        self.logger.info(f"Returning list of found items: {refs}")
-        return refs
-
     def _get_xref_objects(self):
         # ObjXRefMgr.recordCount is 1-indexed like a lot of other maxscript
         for i in range(1, self._rt.ObjXRefMgr.recordCount + 1):
@@ -135,6 +83,58 @@ class BreakdownSceneOperations(HookBaseClass):
                     "node_type": "file",
                     "path": getattr(bitmap, "fileName", ""),
                 }
+
+    def scan_scene(self):
+        """
+        The scan scene method is executed once at startup and its purpose is
+        to analyze the current scene and return a list of references that are
+        to be potentially operated on.
+
+        The return data structure is a list of dictionaries. Each scene reference
+        that is returned should be represented by a dictionary with three keys:
+
+        - "node_name": The name of the 'node' that is to be operated on. Most DCCs have
+          a concept of a node, path or some other way to address a particular
+          object in the scene.
+        - "node_type": The object type that this is. This is later passed to the
+          update method so that it knows how to handle the object.
+        - "path": Path on disk to the referenced object.
+        - "extra_data": Optional key to pass some extra data to the update method
+          in case we'd like to access them when updating the nodes.
+
+        Toolkit will scan the list of items, see if any of the objects matches
+        a published file and try to determine if there is a more recent version
+        available. Any such versions are then displayed in the UI as out of date.
+        """
+
+        _targets = [
+            self._get_xref_objects,
+            self._get_xref_scenes,
+            self._get_bitmaps,
+        ]
+
+        self.logger.info(f"Running on {len(_targets)} targets: {_targets}")
+
+        refs = []
+
+        # Build refs array from targets
+        for t in _targets:
+            self.logger.info(f"Searching in target: {t}")
+            for r in t():
+                self.logger.info(f"Found object: {r}")
+                refs.append(r)
+
+        # # Scan XRef Objects
+        # refs.extend(self._scan_xref_objects())
+
+        # # Scan XRef Scenes
+        # refs.extend(self._scan_xref_scenes())
+
+        # # Scan Material Bitmap Textures
+        # refs.extend(self._scan_material_bitmaps())
+
+        self.logger.info(f"Returning list of found items: {refs}")
+        return refs
 
     def update(self, item):
         """
