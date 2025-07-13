@@ -47,9 +47,8 @@ class BreakdownSceneOperations(HookBaseClass):
             self.logger.info(f"Found 3dsmax XREF Object: {current_object}")
             if current_object:
                 path = Path(getattr(current_object, "srcFileName", ""))
-                # if path.is_file():
                 yield {
-                    "node_name": getattr(current_object, "name", "Unknown Object"),
+                    "node_name": path.name,
                     "node_type": "reference",
                     "path": str(path)
                 }
@@ -123,15 +122,6 @@ class BreakdownSceneOperations(HookBaseClass):
             for r in t():
                 self.logger.info(f"Found object: {r}")
                 refs.append(r)
-
-        # # Scan XRef Objects
-        # refs.extend(self._scan_xref_objects())
-
-        # # Scan XRef Scenes
-        # refs.extend(self._scan_xref_scenes())
-
-        # # Scan Material Bitmap Textures
-        # refs.extend(self._scan_material_bitmaps())
 
         self.logger.info(f"Returning list of found items: {refs}")
         return refs
