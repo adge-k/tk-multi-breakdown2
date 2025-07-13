@@ -73,7 +73,9 @@ class BreakdownSceneOperations(HookBaseClass):
 
         # Build refs array from targets
         for t in _targets:
+            self.logger.info(f"Searching in target: {t}")
             for r in t():
+                self.logger.info(f"Found object: {r}")
                 refs.append(r)
 
         # # Scan XRef Objects
@@ -85,27 +87,29 @@ class BreakdownSceneOperations(HookBaseClass):
         # # Scan Material Bitmap Textures
         # refs.extend(self._scan_material_bitmaps())
 
+        self.logger.info(f"Returning list of found items: {refs}")
         return refs
 
     def _get_xref_objects(self):
         # ObjXRefMgr.recordCount is 1-indexed like a lot of other maxscript
         for i in range(1, self._rt.ObjXRefMgr.recordCount + 1):
             current_object = self._rt.ObjXRefMgr.GetRecord(i)
+            self.logger.info(f"Found 3dsmax XREF Object: {current_object}")
             if current_object:
                 path = Path(getattr(current_object, "srcFileName", ""))
-                if path.is_file():
-                    yield {
-                        "node_name": getattr(current_object, "name", "Unknown Object"),
-                        "node_type": "reference",
-                        "path": str(path)
-                    }
+                # if path.is_file():
+                yield {
+                    "node_name": getattr(current_object, "name", "Unknown Object"),
+                    "node_type": "reference",
+                    "path": str(path)
+                }
 
     def _get_xref_scenes(self):
         """Get all XREF Scene links in the current file."""
         # NOTE: XREFScene count is 1-indexed.
         for i in range(1, self._rt.xrefs.getXRefFileCount() + 1):
             xref = self._rt.xrefs.getXRefFile(i)
-
+            self.logger.info(f"Found 3dsmax XREF Scene: {xref}")
             yield {
                 "node_name": getattr(xref, "name", "Unknown XREF Scene"),
                 "node_type": "reference",
@@ -123,6 +127,7 @@ class BreakdownSceneOperations(HookBaseClass):
 
         for c in bitmap_node_classes:
             for bitmap in self._rt.GetClassInstances(c):
+                self.logger.info(f"Found bitmap: {bitmap}")
                 yield {
                     "node_name": getattr(bitmap, "name", "Unknown Bitmap Name"),
                     "node_type": "file",
