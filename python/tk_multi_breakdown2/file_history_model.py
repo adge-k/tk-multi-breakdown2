@@ -147,6 +147,7 @@ class FileHistoryModel(ShotgunModel, ViewItemRolesMixin):
         :type sg_data: FileItem
         """
 
+        print(f"Received file data {parent_file}")
         self.__parent_sg_data = parent_file.sg_data if parent_file else {}
         self.__parent_locked = parent_file.locked if parent_file else None
         self.__parent_highest_version_number = (
@@ -169,6 +170,8 @@ class FileHistoryModel(ShotgunModel, ViewItemRolesMixin):
             ],
         ]
         filters += self.__manager.get_history_published_file_filters()
+        print(f"Finding PublishedFile entities using filters: {filters}")
+        print(f"Going to try and receive the fields: {fields}")
         ShotgunModel._load_data(
             self,
             entity_type="PublishedFile",
