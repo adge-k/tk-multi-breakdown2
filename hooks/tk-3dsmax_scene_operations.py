@@ -69,6 +69,8 @@ class BreakdownSceneOperations(HookBaseClass):
             _get_bitmaps,
         ]
 
+        self.logger.info(f"Running on {len(_targets)} targets: {_targets}")
+
         refs = []
 
         # Build refs array from targets
