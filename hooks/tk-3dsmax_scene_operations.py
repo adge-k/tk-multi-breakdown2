@@ -254,8 +254,8 @@ class BreakdownSceneOperations(HookBaseClass):
         #     else:
         #         self.logger.error("No bitmap handle provided for '%s'" % node_name)
                 
-        except Exception as e:
-            self.logger.error("Error updating bitmap texture '%s': %s" % (node_name, str(e)))
+        # except Exception as e:
+        #     self.logger.error("Error updating bitmap texture '%s': %s" % (node_name, str(e)))
 
     def register_scene_change_callback(self, scene_change_callback):
         """
